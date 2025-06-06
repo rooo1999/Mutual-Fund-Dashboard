@@ -122,10 +122,9 @@ for i in range(len(default_portfolio_names)):
         if period in fund_df.columns:
             fund_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
 
-    fund_styled = fund_df.style.format("{:.2f}")
     numeric_cols = [col for col in fund_df.columns if fund_df[col].dtype in ['float64', 'int64']]
-    fund_styled = fund_styled.background_gradient(cmap='BrBG', axis=0, subset=numeric_cols)
-    st.dataframe(fund_styled)
+    styled_fund_df = fund_df.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=0, subset=numeric_cols)
+    st.dataframe(styled_fund_df)
 
     combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
     for benchmark_name, scheme_code in benchmark_scheme_codes.items():
@@ -139,9 +138,8 @@ for i in range(len(default_portfolio_names)):
         if period in combined_df.columns:
             combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
 
-    combined_styled = combined_df.style.format("{:.2f}")
     numeric_cols_combined = [col for col in combined_df.columns if combined_df[col].dtype in ['float64', 'int64']]
-    combined_styled = combined_styled.background_gradient(cmap='BrBG', axis=0, subset=numeric_cols_combined)
-    st.dataframe(combined_styled)
+    styled_combined_df = combined_df.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=0, subset=numeric_cols_combined)
+    st.dataframe(styled_combined_df)
 
     st.markdown("---")
