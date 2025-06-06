@@ -7,8 +7,10 @@ from dateutil.relativedelta import relativedelta
 st.set_page_config(page_title="Mutual Fund Returns Dashboard", layout="wide")
 st.title("📈 Mutual Fund Returns Dashboard")
 
+# Use yesterday as "today" because today's data may not be available yet
 today = datetime.today() - timedelta(days=1)
 
+# Return periods
 date_dict = {
     "1D": today - timedelta(days=1),
     "1W": today - timedelta(weeks=1),
@@ -29,6 +31,10 @@ def get_nav_history(scheme_code):
     data = response.json()
 
     if 'data' not in data or not isinstance(data['data'], list) or len(data['data']) == 0:
+        return pd.DataFrame(), None
+
+    first_entry = data['data'][0]
+    if 'date' not in first_entry or 'nav' not in first_entry:
         return pd.DataFrame(), None
 
     df = pd.DataFrame(data['data'])
@@ -62,12 +68,14 @@ def calculate_returns(nav_df):
             returns[label] = None
     return returns
 
+# Benchmark fund scheme codes
 benchmark_scheme_codes = {
-    "Motilal Nifty 50": "147794",
-    "Motilal Nifty 500": "147625",
-    "Motilal Smallcap 250": "147623"
+        "Motilal Nifty 50": "147794",
+        "Motilal Nifty 500": "147625",
+        "Motilal Smallcap 250": "147623"
 }
 
+# Predefined portfolio names and allocations
 default_portfolio_names = [
     "High Growth Active",
     "High Growth Passive",
@@ -86,12 +94,35 @@ default_portfolios = [
     {"148486": 0.3, "148064": 0.2, "140242": 0.2, "132005": 0.3}
 ]
 
+def input_portfolio(portfolio_num, default_portfolio, default_name):
+    st.subheader(f"Portfolio {portfolio_num} Allocation")
+    portfolio_name = st.text_input(f"Portfolio {portfolio_num} Name", value=default_name, key=f"portfolio_name_{portfolio_num}")
+
+    num_funds = st.number_input(f"Number of funds in {portfolio_name}", min_value=1, max_value=10, value=len(default_portfolio), key=f"numfunds{portfolio_num}")
+    portfolio = {}
+    for i in range(num_funds):
+        default_code = list(default_portfolio.keys())[i] if i < len(default_portfolio) else ""
+        default_weight = list(default_portfolio.values())[i] if i < len(default_portfolio) else 0.0
+        scheme_code = st.text_input(f"Scheme Code {i+1} ({portfolio_name})", value=default_code, key=f"code{portfolio_num}_{i}")
+        weight = st.number_input(f"Weight {i+1} ({portfolio_name})", min_value=0.0, max_value=1.0, value=default_weight, key=f"weight{portfolio_num}_{i}")
+        if scheme_code:
+            portfolio[scheme_code] = weight
+    total_weight = sum(portfolio.values())
+    if total_weight > 0:
+        for k in portfolio:
+            portfolio[k] /= total_weight
+    return portfolio_name, portfolio
+
+portfolio_data = []
+for i in range(1, 7):
+    default_name = default_portfolio_names[i-1] if i-1 < len(default_portfolio_names) else f"Portfolio {i}"
+    name, portfolio = input_portfolio(i, default_portfolios[i-1] if i-1 < len(default_portfolios) else {}, default_name)
+    portfolio_data.append((name, portfolio))
+
+st.markdown("---")
 st.header("📊 Calculated Returns")
 
-for i in range(len(default_portfolio_names)):
-    name = default_portfolio_names[i]
-    portfolio = default_portfolios[i]
-
+for name, portfolio in portfolio_data:
     st.subheader(f"{name} Returns")
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
@@ -117,12 +148,9 @@ for i in range(len(default_portfolio_names)):
     for period in ["1Y", "3Y", "5Y"]:
         if period in fund_df.columns:
             fund_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
+    st.dataframe(fund_df.style.format("{:.2f}"))
 
-    numeric_cols = [col for col in fund_df.columns if fund_df[col].dtype in ['float64', 'int64']]
-    styled_fund_df = fund_df.style.format("{:.2f}").background_gradient(subset=numeric_cols, cmap='RdYlGn', axis=0)
-
-    st.dataframe(styled_fund_df)
-
+    # Add portfolio returns and benchmark returns in the same table
     combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
     for benchmark_name, scheme_code in benchmark_scheme_codes.items():
         nav_df, _ = get_nav_history(scheme_code)
@@ -135,8 +163,5 @@ for i in range(len(default_portfolio_names)):
         if period in combined_df.columns:
             combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
 
-    numeric_cols_combined = [col for col in combined_df.columns if combined_df[col].dtype in ['float64', 'int64']]
-    styled_combined_df = combined_df.style.format("{:.2f}").background_gradient(subset=numeric_cols_combined, cmap='RdYlGn', axis=0)
-
-    st.dataframe(styled_combined_df)
+    st.dataframe(combined_df.style.format("{:.2f}"))
     st.markdown("---")
