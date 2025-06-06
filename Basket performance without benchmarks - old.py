@@ -10,7 +10,6 @@ st.title("📈 Mutual Fund Returns Dashboard")
 # Use yesterday as "today" because today's data may not be available yet
 today = datetime.today() - timedelta(days=1)
 
-# Return periods
 date_dict = {
     "1D": today - timedelta(days=1),
     "1W": today - timedelta(weeks=1),
@@ -29,21 +28,21 @@ def get_nav_history(scheme_code):
     url = f"https://api.mfapi.in/mf/{scheme_code}"
     response = requests.get(url)
     data = response.json()
-
+    
     if 'data' not in data or not isinstance(data['data'], list) or len(data['data']) == 0:
         return pd.DataFrame(), None
-
+    
     first_entry = data['data'][0]
     if 'date' not in first_entry or 'nav' not in first_entry:
         return pd.DataFrame(), None
-
+    
     df = pd.DataFrame(data['data'])
     df['date'] = pd.to_datetime(df['date'], format="%d-%m-%Y", errors='coerce')
     df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
     df.dropna(subset=['date', 'nav'], inplace=True)
     df.set_index('date', inplace=True)
     df.sort_index(inplace=True)
-
+    
     scheme_name = data.get("meta", {}).get("scheme_name", f"Scheme {scheme_code}")
     return df, scheme_name
 
@@ -68,14 +67,7 @@ def calculate_returns(nav_df):
             returns[label] = None
     return returns
 
-# Benchmark fund scheme codes
-benchmark_scheme_codes = {
-    "Nifty 50 Index Fund": "147795",
-    "Nifty Next 50 Index Fund": "140825",
-    "Nifty Midcap 150 Index Fund": "140242"
-}
-
-# Predefined portfolio names and allocations
+# Predefined portfolio names
 default_portfolio_names = [
     "High Growth Active",
     "High Growth Passive",
@@ -85,6 +77,7 @@ default_portfolio_names = [
     "Global Equity"
 ]
 
+# Default example portfolios (scheme_code : weight)
 default_portfolios = [
     {"102000": 0.24, "106235": 0.24, "105758": 0.11, "140225": 0.11, "122640": 0.15, "109522": 0.15},
     {"147795": 0.3, "106235": 0.2, "113296": 0.15, "152352": 0.1, "150490": 0.15, "152232": 0.1},
@@ -150,20 +143,9 @@ for name, portfolio in portfolio_data:
             fund_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
     st.dataframe(fund_df.style.format("{:.2f}"))
 
-    # Add portfolio returns and benchmark returns in the same table
-    combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
-    for benchmark_name, scheme_code in benchmark_scheme_codes.items():
-        nav_df, _ = get_nav_history(scheme_code)
-        if nav_df.empty:
-            continue
-        returns = calculate_returns(nav_df)
-        combined_df.loc[f"Benchmark: {benchmark_name}"] = returns
-
+    portfolio_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
     for period in ["1Y", "3Y", "5Y"]:
-        if period in combined_df.columns:
-            combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
-
-    # Apply color scale to highlight best and worst performers
-    styled_combined_df = combined_df.style.format("{:.2f}").background_gradient(axis=0, cmap='RdYlGn')
-    st.dataframe(styled_combined_df)
+        if period in portfolio_df.columns:
+            portfolio_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
+    st.dataframe(portfolio_df.style.format("{:.2f}"))
     st.markdown("---")
