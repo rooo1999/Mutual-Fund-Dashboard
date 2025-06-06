@@ -3,15 +3,14 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-import seaborn as sns
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 
 st.set_page_config(page_title="Mutual Fund Returns Dashboard", layout="wide")
 st.title("📈 Mutual Fund Returns Dashboard")
 
+# Use yesterday as "today" because today's data may not be available yet
 today = datetime.today() - timedelta(days=1)
 
+# Return periods
 date_dict = {
     "1D": today - timedelta(days=1),
     "1W": today - timedelta(weeks=1),
@@ -30,14 +29,21 @@ def get_nav_history(scheme_code):
     url = f"https://api.mfapi.in/mf/{scheme_code}"
     response = requests.get(url)
     data = response.json()
+
     if 'data' not in data or not isinstance(data['data'], list) or len(data['data']) == 0:
         return pd.DataFrame(), None
+
+    first_entry = data['data'][0]
+    if 'date' not in first_entry or 'nav' not in first_entry:
+        return pd.DataFrame(), None
+
     df = pd.DataFrame(data['data'])
     df['date'] = pd.to_datetime(df['date'], format="%d-%m-%Y", errors='coerce')
     df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
     df.dropna(subset=['date', 'nav'], inplace=True)
     df.set_index('date', inplace=True)
     df.sort_index(inplace=True)
+
     scheme_name = data.get("meta", {}).get("scheme_name", f"Scheme {scheme_code}")
     return df, scheme_name
 
@@ -62,9 +68,6 @@ def calculate_returns(nav_df):
             returns[label] = None
     return returns
 
-# Custom Excel-style gradient colormap
-excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
-
 # Benchmark fund scheme codes
 benchmark_scheme_codes = {
     "Motilal Nifty 50": "147794",
@@ -72,9 +75,14 @@ benchmark_scheme_codes = {
     "Motilal Smallcap 250": "147623"
 }
 
+# Predefined portfolio names and allocations
 default_portfolio_names = [
-    "High Growth Active", "High Growth Passive", "Sector Rotation",
-    "Season's Flavor", "Smart Debt", "Global Equity"
+    "High Growth Active",
+    "High Growth Passive",
+    "Sector Rotation",
+    "Season's Flavor",
+    "Smart Debt",
+    "Global Equity"
 ]
 
 default_portfolios = [
@@ -117,12 +125,9 @@ for i in range(len(default_portfolio_names)):
     for period in ["1Y", "3Y", "5Y"]:
         if period in fund_df.columns:
             fund_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
+    st.dataframe(fund_df.style.format("{:.2f}"))
 
-    numeric_cols = fund_df.select_dtypes(include='number').columns
-    styled_fund_df = fund_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0, subset=numeric_cols)
-    st.dataframe(styled_fund_df)
-
-    # Portfolio and benchmark comparison
+    # Add portfolio returns and benchmark returns in the same table
     combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
     for benchmark_name, scheme_code in benchmark_scheme_codes.items():
         nav_df, _ = get_nav_history(scheme_code)
@@ -135,8 +140,5 @@ for i in range(len(default_portfolio_names)):
         if period in combined_df.columns:
             combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
 
-    numeric_cols_combined = combined_df.select_dtypes(include='number').columns
-    styled_combined_df = combined_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0, subset=numeric_cols_combined)
-    st.dataframe(styled_combined_df)
-
+    st.dataframe(combined_df.style.format("{:.2f}"))
     st.markdown("---")
