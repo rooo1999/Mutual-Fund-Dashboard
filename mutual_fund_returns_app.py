@@ -28,21 +28,21 @@ def get_nav_history(scheme_code):
     url = f"https://api.mfapi.in/mf/{scheme_code}"
     response = requests.get(url)
     data = response.json()
-    
+
     if 'data' not in data or not isinstance(data['data'], list) or len(data['data']) == 0:
         return pd.DataFrame(), None
-    
+
     first_entry = data['data'][0]
     if 'date' not in first_entry or 'nav' not in first_entry:
         return pd.DataFrame(), None
-    
+
     df = pd.DataFrame(data['data'])
     df['date'] = pd.to_datetime(df['date'], format="%d-%m-%Y", errors='coerce')
     df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
     df.dropna(subset=['date', 'nav'], inplace=True)
     df.set_index('date', inplace=True)
     df.sort_index(inplace=True)
-    
+
     scheme_name = data.get("meta", {}).get("scheme_name", f"Scheme {scheme_code}")
     return df, scheme_name
 
@@ -148,4 +148,29 @@ for name, portfolio in portfolio_data:
         if period in portfolio_df.columns:
             portfolio_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
     st.dataframe(portfolio_df.style.format("{:.2f}"))
+
+    # Benchmark comparison section below each portfolio
+    st.markdown("**📌 Benchmark Comparison**")
+    benchmark_codes = {
+        "Motilal Nifty 50": "147794",
+        "Motilal Nifty 500": "147625",
+        "Motilal Smallcap 250": "147623"
+    }
+
+    benchmark_returns = {}
+    for bench_name, bench_code in benchmark_codes.items():
+        bench_df, _ = get_nav_history(bench_code)
+        if bench_df.empty:
+            benchmark_returns[bench_name] = {label: None for label in date_dict}
+            continue
+        bench_returns = calculate_returns(bench_df)
+        benchmark_returns[bench_name] = bench_returns
+
+    benchmark_df = pd.DataFrame(benchmark_returns).T
+    for period in ["1Y", "3Y", "5Y"]:
+        if period in benchmark_df.columns:
+            benchmark_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
+
+    benchmark_df.index.name = "Benchmark Fund"
+    st.dataframe(benchmark_df.style.format("{:.2f}"))
     st.markdown("---")
