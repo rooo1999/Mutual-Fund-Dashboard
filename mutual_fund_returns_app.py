@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -8,8 +7,10 @@ from dateutil.relativedelta import relativedelta
 st.set_page_config(page_title="Mutual Fund Returns Dashboard", layout="wide")
 st.title("📈 Mutual Fund Returns Dashboard")
 
+# Use yesterday as "today" because today's data may not be available yet
 today = datetime.today() - timedelta(days=1)
 
+# Return periods
 date_dict = {
     "1D": today - timedelta(days=1),
     "1W": today - timedelta(weeks=1),
@@ -30,6 +31,10 @@ def get_nav_history(scheme_code):
     data = response.json()
 
     if 'data' not in data or not isinstance(data['data'], list) or len(data['data']) == 0:
+        return pd.DataFrame(), None
+
+    first_entry = data['data'][0]
+    if 'date' not in first_entry or 'nav' not in first_entry:
         return pd.DataFrame(), None
 
     df = pd.DataFrame(data['data'])
@@ -63,12 +68,14 @@ def calculate_returns(nav_df):
             returns[label] = None
     return returns
 
+# Benchmark fund scheme codes
 benchmark_scheme_codes = {
     "Motilal Nifty 50": "147794",
     "Motilal Nifty 500": "147625",
     "Motilal Smallcap 250": "147623"
 }
 
+# Predefined portfolio names and allocations
 default_portfolio_names = [
     "High Growth Active",
     "High Growth Passive",
@@ -118,12 +125,9 @@ for i in range(len(default_portfolio_names)):
     for period in ["1Y", "3Y", "5Y"]:
         if period in fund_df.columns:
             fund_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
+    st.dataframe(fund_df.style.format("{:.2f}"))
 
-    numeric_cols = [col for col in fund_df.columns if fund_df[col].dtype in ['float64', 'int64']]
-    styled_fund_df = fund_df.style.format("{:.2f}").background_gradient(subset=numeric_cols, cmap='RdYlGn', axis=0)
-
-    st.dataframe(styled_fund_df)
-
+    # Add portfolio returns and benchmark returns in the same table
     combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
     for benchmark_name, scheme_code in benchmark_scheme_codes.items():
         nav_df, _ = get_nav_history(scheme_code)
@@ -136,8 +140,5 @@ for i in range(len(default_portfolio_names)):
         if period in combined_df.columns:
             combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
 
-    numeric_cols_combined = [col for col in combined_df.columns if combined_df[col].dtype in ['float64', 'int64']]
-    styled_combined_df = combined_df.style.format("{:.2f}").background_gradient(subset=numeric_cols_combined, cmap='RdYlGn', axis=0)
-
-    st.dataframe(styled_combined_df)
+    st.dataframe(combined_df.style.format("{:.2f}"))
     st.markdown("---")
