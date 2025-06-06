@@ -70,9 +70,9 @@ def calculate_returns(nav_df):
 
 # Benchmark fund scheme codes
 benchmark_scheme_codes = {
-    "Nifty 50 Index Fund": "147795",
-    "Nifty Next 50 Index Fund": "140825",
-    "Nifty Midcap 150 Index Fund": "140242"
+        "Motilal Nifty 50": "147794",
+        "Motilal Nifty 500": "147625",
+        "Motilal Smallcap 250": "147623"
 }
 
 # Predefined portfolio names and allocations
