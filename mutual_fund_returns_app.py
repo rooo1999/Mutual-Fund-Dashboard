@@ -143,14 +143,6 @@ for name, portfolio in portfolio_data:
                 if returns[label] is not None:
                     portfolio_returns[label] += returns[label] * weight
 
-        # Append benchmark returns to fund_returns_dict
-        for benchmark_name, scheme_code in benchmark_scheme_codes.items():
-            nav_df, _ = get_nav_history(scheme_code)
-            if nav_df.empty:
-                continue
-            returns = calculate_returns(nav_df)
-            fund_returns_dict[f"🟨 Benchmark: {benchmark_name}"] = {"Weight": None, **returns}
-
     fund_df = pd.DataFrame(fund_returns_dict).T
     fund_df.index.name = "Fund Name"
     for period in ["1Y", "3Y", "5Y"]:
@@ -158,9 +150,18 @@ for name, portfolio in portfolio_data:
             fund_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
     st.dataframe(fund_df.style.format("{:.2f}"))
 
-    portfolio_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
+    # Add portfolio returns and benchmark returns in the same table
+    combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
+    for benchmark_name, scheme_code in benchmark_scheme_codes.items():
+        nav_df, _ = get_nav_history(scheme_code)
+        if nav_df.empty:
+            continue
+        returns = calculate_returns(nav_df)
+        combined_df.loc[f"Benchmark: {benchmark_name}"] = returns
+
     for period in ["1Y", "3Y", "5Y"]:
-        if period in portfolio_df.columns:
-            portfolio_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
-    st.dataframe(portfolio_df.style.format("{:.2f}"))
+        if period in combined_df.columns:
+            combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
+
+    st.dataframe(combined_df.style.format("{:.2f}"))
     st.markdown("---")
