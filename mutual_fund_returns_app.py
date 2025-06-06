@@ -70,9 +70,9 @@ def calculate_returns(nav_df):
 
 # Benchmark fund scheme codes
 benchmark_scheme_codes = {
-    "Nifty 50 Index Fund": "147795",
-    "Nifty Next 50 Index Fund": "140825",
-    "Nifty Midcap 150 Index Fund": "140242"
+        "Motilal Nifty 50": "147794",
+        "Motilal Nifty 500": "147625",
+        "Motilal Smallcap 250": "147623"
 }
 
 # Predefined portfolio names and allocations
@@ -163,7 +163,5 @@ for name, portfolio in portfolio_data:
         if period in combined_df.columns:
             combined_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
 
-    # Apply color scale to highlight best and worst performers
-    styled_combined_df = combined_df.style.format("{:.2f}").background_gradient(axis=0, cmap='RdYlGn')
-    st.dataframe(styled_combined_df)
+    st.dataframe(combined_df.style.format("{:.2f}"))
     st.markdown("---")
