@@ -10,6 +10,7 @@ st.title("📈 Mutual Fund Returns Dashboard")
 # Use yesterday as "today" because today's data may not be available yet
 today = datetime.today() - timedelta(days=1)
 
+# Return periods
 date_dict = {
     "1D": today - timedelta(days=1),
     "1W": today - timedelta(weeks=1),
@@ -67,7 +68,14 @@ def calculate_returns(nav_df):
             returns[label] = None
     return returns
 
-# Predefined portfolio names
+# Benchmark fund scheme codes
+benchmark_scheme_codes = {
+    "Nifty 50 Index Fund": "147795",
+    "Nifty Next 50 Index Fund": "140825",
+    "Nifty Midcap 150 Index Fund": "140242"
+}
+
+# Predefined portfolio names and allocations
 default_portfolio_names = [
     "High Growth Active",
     "High Growth Passive",
@@ -77,7 +85,6 @@ default_portfolio_names = [
     "Global Equity"
 ]
 
-# Default example portfolios (scheme_code : weight)
 default_portfolios = [
     {"102000": 0.24, "106235": 0.24, "105758": 0.11, "140225": 0.11, "122640": 0.15, "109522": 0.15},
     {"147795": 0.3, "106235": 0.2, "113296": 0.15, "152352": 0.1, "150490": 0.15, "152232": 0.1},
@@ -136,6 +143,14 @@ for name, portfolio in portfolio_data:
                 if returns[label] is not None:
                     portfolio_returns[label] += returns[label] * weight
 
+        # Append benchmark returns to fund_returns_dict
+        for benchmark_name, scheme_code in benchmark_scheme_codes.items():
+            nav_df, _ = get_nav_history(scheme_code)
+            if nav_df.empty:
+                continue
+            returns = calculate_returns(nav_df)
+            fund_returns_dict[f"🟨 Benchmark: {benchmark_name}"] = {"Weight": None, **returns}
+
     fund_df = pd.DataFrame(fund_returns_dict).T
     fund_df.index.name = "Fund Name"
     for period in ["1Y", "3Y", "5Y"]:
@@ -148,29 +163,4 @@ for name, portfolio in portfolio_data:
         if period in portfolio_df.columns:
             portfolio_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
     st.dataframe(portfolio_df.style.format("{:.2f}"))
-
-    # Benchmark comparison section below each portfolio
-    st.markdown("**📌 Benchmark Comparison**")
-    benchmark_codes = {
-        "Motilal Nifty 50": "147794",
-        "Motilal Nifty 500": "147625",
-        "Motilal Smallcap 250": "147623"
-    }
-
-    benchmark_returns = {}
-    for bench_name, bench_code in benchmark_codes.items():
-        bench_df, _ = get_nav_history(bench_code)
-        if bench_df.empty:
-            benchmark_returns[bench_name] = {label: None for label in date_dict}
-            continue
-        bench_returns = calculate_returns(bench_df)
-        benchmark_returns[bench_name] = bench_returns
-
-    benchmark_df = pd.DataFrame(benchmark_returns).T
-    for period in ["1Y", "3Y", "5Y"]:
-        if period in benchmark_df.columns:
-            benchmark_df.rename(columns={period: period + " (CAGR)"}, inplace=True)
-
-    benchmark_df.index.name = "Benchmark Fund"
-    st.dataframe(benchmark_df.style.format("{:.2f}"))
     st.markdown("---")
