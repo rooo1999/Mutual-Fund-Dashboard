@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-import matplotlib  # needed for background_gradient
 
 st.set_page_config(page_title="Mutual Fund Returns Dashboard", layout="wide")
 st.title("📈 Mutual Fund Returns Dashboard")
@@ -125,8 +124,7 @@ for i in range(len(default_portfolio_names)):
 
     fund_styled = fund_df.style.format("{:.2f}")
     numeric_cols = [col for col in fund_df.columns if fund_df[col].dtype in ['float64', 'int64']]
-    fund_styled = fund_styled.background_gradient(cmap='RdYlGn', subset=numeric_cols)
-
+    fund_styled = fund_styled.background_gradient(cmap='BrBG', axis=0, subset=numeric_cols)
     st.dataframe(fund_styled)
 
     combined_df = pd.DataFrame([portfolio_returns], index=[f"{name} Weighted Returns (%)"])
@@ -143,7 +141,7 @@ for i in range(len(default_portfolio_names)):
 
     combined_styled = combined_df.style.format("{:.2f}")
     numeric_cols_combined = [col for col in combined_df.columns if combined_df[col].dtype in ['float64', 'int64']]
-    combined_styled = combined_styled.background_gradient(cmap='RdYlGn', subset=numeric_cols_combined)
-
+    combined_styled = combined_styled.background_gradient(cmap='BrBG', axis=0, subset=numeric_cols_combined)
     st.dataframe(combined_styled)
+
     st.markdown("---")
