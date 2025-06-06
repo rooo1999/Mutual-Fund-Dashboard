@@ -70,9 +70,9 @@ def calculate_returns(nav_df):
 
 # Benchmark fund scheme codes
 benchmark_scheme_codes = {
-        "Motilal Nifty 50": "147794",
-        "Motilal Nifty 500": "147625",
-        "Motilal Smallcap 250": "147623"
+    "Motilal Nifty 50": "147794",
+    "Motilal Nifty 500": "147625",
+    "Motilal Smallcap 250": "147623"
 }
 
 # Predefined portfolio names and allocations
@@ -94,35 +94,12 @@ default_portfolios = [
     {"148486": 0.3, "148064": 0.2, "140242": 0.2, "132005": 0.3}
 ]
 
-def input_portfolio(portfolio_num, default_portfolio, default_name):
-    st.subheader(f"Portfolio {portfolio_num} Allocation")
-    portfolio_name = st.text_input(f"Portfolio {portfolio_num} Name", value=default_name, key=f"portfolio_name_{portfolio_num}")
-
-    num_funds = st.number_input(f"Number of funds in {portfolio_name}", min_value=1, max_value=10, value=len(default_portfolio), key=f"numfunds{portfolio_num}")
-    portfolio = {}
-    for i in range(num_funds):
-        default_code = list(default_portfolio.keys())[i] if i < len(default_portfolio) else ""
-        default_weight = list(default_portfolio.values())[i] if i < len(default_portfolio) else 0.0
-        scheme_code = st.text_input(f"Scheme Code {i+1} ({portfolio_name})", value=default_code, key=f"code{portfolio_num}_{i}")
-        weight = st.number_input(f"Weight {i+1} ({portfolio_name})", min_value=0.0, max_value=1.0, value=default_weight, key=f"weight{portfolio_num}_{i}")
-        if scheme_code:
-            portfolio[scheme_code] = weight
-    total_weight = sum(portfolio.values())
-    if total_weight > 0:
-        for k in portfolio:
-            portfolio[k] /= total_weight
-    return portfolio_name, portfolio
-
-portfolio_data = []
-for i in range(1, 7):
-    default_name = default_portfolio_names[i-1] if i-1 < len(default_portfolio_names) else f"Portfolio {i}"
-    name, portfolio = input_portfolio(i, default_portfolios[i-1] if i-1 < len(default_portfolios) else {}, default_name)
-    portfolio_data.append((name, portfolio))
-
-st.markdown("---")
 st.header("📊 Calculated Returns")
 
-for name, portfolio in portfolio_data:
+for i in range(len(default_portfolio_names)):
+    name = default_portfolio_names[i]
+    portfolio = default_portfolios[i]
+
     st.subheader(f"{name} Returns")
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
