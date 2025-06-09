@@ -7,7 +7,6 @@ from matplotlib.colors import LinearSegmentedColormap
 st.set_page_config(page_title="Mutual Fund Monthly Returns Dashboard", layout="wide")
 st.title("📈 Mutual Fund Monthly Returns Dashboard")
 
-# Starting from Jan 2024
 start_date = datetime(2024, 1, 1)
 today = datetime.today() - timedelta(days=1)
 
@@ -35,10 +34,18 @@ def calculate_monthly_returns(nav_df):
     mom_returns.index = mom_returns.index.strftime('%b-%Y')
     return mom_returns
 
-# Color gradient like Excel
+def get_all_months(start_date):
+    today = datetime.today()
+    months = pd.date_range(start=start_date, end=today, freq='M').strftime('%b-%Y')
+    return months.tolist()
+
+# Generate full month index from Jan 2024 to current
+all_months = get_all_months(start_date)
+
+# Excel-like color map
 excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
 
-# Benchmarks
+# Benchmark codes
 benchmark_scheme_codes = {
     "Nifty 50": "147794",
     "Nifty 500": "147625",
@@ -47,7 +54,7 @@ benchmark_scheme_codes = {
     "Sensex": "119597"
 }
 
-# Portfolios with weights
+# Portfolio definitions
 default_portfolio_names = [
     "High Growth Active", "High Growth Passive", "Sector Rotation",
     "Season's Flavor", "Smart Debt", "Global Equity"
@@ -62,19 +69,30 @@ default_portfolios = [
     {"148486": 0.3, "148064": 0.2, "140242": 0.2, "132005": 0.3}
 ]
 
+# Preload benchmark returns
+benchmark_returns = {}
+for b_name, b_code in benchmark_scheme_codes.items():
+    nav_df, _ = get_nav_history(b_code)
+    if nav_df.empty:
+        continue
+    monthly_returns = calculate_monthly_returns(nav_df).reindex(all_months)
+    benchmark_returns[b_name] = monthly_returns
+
 st.header("📆 Monthly MoM Returns (from Jan 2024)")
 
+# Show portfolios
 for i in range(len(default_portfolio_names)):
     name = default_portfolio_names[i]
     portfolio = default_portfolios[i]
 
     st.subheader(f"🧾 {name} Monthly Returns")
+
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
         continue
 
     fund_monthly_returns = {}
-    weighted_returns = None
+    weighted_returns = pd.Series(0, index=all_months)
 
     with st.spinner(f"Fetching NAVs for {name}..."):
         for scheme_code, weight in portfolio.items():
@@ -82,42 +100,29 @@ for i in range(len(default_portfolio_names)):
             if nav_df.empty:
                 st.warning(f"Data not available for scheme {scheme_code} in {name}")
                 continue
-            monthly_returns = calculate_monthly_returns(nav_df)
+            monthly_returns = calculate_monthly_returns(nav_df).reindex(all_months)
             fund_monthly_returns[scheme_name] = monthly_returns
-            if weighted_returns is None:
-                weighted_returns = monthly_returns * weight
-            else:
-                weighted_returns = weighted_returns.add(monthly_returns * weight, fill_value=0)
+            weighted_returns = weighted_returns.add(monthly_returns.fillna(0) * weight, fill_value=0)
 
     if not fund_monthly_returns:
         st.write("No data available for this portfolio.")
         continue
 
-    monthly_df = pd.DataFrame(fund_monthly_returns).T
+    # Show fund-wise returns
+    monthly_df = pd.DataFrame(fund_monthly_returns).T[all_months]
     styled_df = monthly_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
     st.dataframe(styled_df, use_container_width=True)
 
-    if weighted_returns is not None:
-        weighted_returns.name = f"{name} Portfolio"
-        st.subheader("📦 Portfolio Weighted Returns")
-        st.dataframe(weighted_returns.to_frame().T.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=1), use_container_width=True)
+    # Weighted portfolio returns
+    st.subheader("📦 Portfolio Weighted Returns")
+    weighted_df = weighted_returns.to_frame().T
+    weighted_df.index = [f"{name} Portfolio"]
+    st.dataframe(weighted_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=1), use_container_width=True)
 
-    st.markdown("---")
-
-# Benchmarks
-st.header("📉 Benchmark Monthly Returns (from Jan 2024)")
-benchmark_returns = {}
-
-for b_name, b_code in benchmark_scheme_codes.items():
-    nav_df, scheme_name = get_nav_history(b_code)
-    if nav_df.empty:
-        continue
-    monthly_returns = calculate_monthly_returns(nav_df)
-    benchmark_returns[b_name] = monthly_returns
-
-if benchmark_returns:
-    benchmark_df = pd.DataFrame(benchmark_returns).T
+    # Benchmark comparison under each portfolio
+    st.subheader("📊 Benchmark Comparison")
+    benchmark_df = pd.DataFrame(benchmark_returns).T[all_months]
     styled_benchmark_df = benchmark_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
     st.dataframe(styled_benchmark_df, use_container_width=True)
-else:
-    st.write("Benchmark data not available.")
+
+    st.markdown("---")
