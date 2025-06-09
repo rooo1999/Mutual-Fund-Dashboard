@@ -9,6 +9,7 @@ st.title("📈 Mutual Fund Monthly Returns Dashboard")
 
 start_date = datetime(2024, 1, 1)
 today = datetime.today() - timedelta(days=1)
+display_start_month = "Jun-2024"  # Only show months from June 2024 onward
 
 @st.cache_data(ttl=86400)
 def get_nav_history(scheme_code):
@@ -39,8 +40,9 @@ def get_all_months(start_date):
     months = pd.date_range(start=start_date, end=today, freq='M').strftime('%b-%Y')
     return months.tolist()
 
-# Generate full month index from Jan 2024 to current
+# Generate month index and filter from Jun 2024 onwards
 all_months = get_all_months(start_date)
+months_from_june = [m for m in all_months if m >= display_start_month]
 
 # Excel-like color map
 excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
@@ -78,14 +80,14 @@ for b_name, b_code in benchmark_scheme_codes.items():
     monthly_returns = calculate_monthly_returns(nav_df).reindex(all_months)
     benchmark_returns[b_name] = monthly_returns
 
-st.header("📆 Monthly MoM Returns (from Jan 2024)")
+st.header("📆 Monthly MoM Returns (from Jun 2024)")
 
 # Show portfolios
 for i in range(len(default_portfolio_names)):
     name = default_portfolio_names[i]
     portfolio = default_portfolios[i]
 
-    st.subheader(f"🧾 {name} Monthly Returns")
+    st.subheader(f"🧾 {name} Portfolio Returns + Benchmarks")
 
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
@@ -108,21 +110,22 @@ for i in range(len(default_portfolio_names)):
         st.write("No data available for this portfolio.")
         continue
 
-    # Show fund-wise returns
-    monthly_df = pd.DataFrame(fund_monthly_returns).T[all_months]
-    styled_df = monthly_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
-    st.dataframe(styled_df, use_container_width=True)
+    # Combine all: funds + portfolio + benchmarks
+    combined_df = pd.DataFrame(fund_monthly_returns).T[months_from_june]
 
-    # Weighted portfolio returns
-    st.subheader("📦 Portfolio Weighted Returns")
-    weighted_df = weighted_returns.to_frame().T
+    # Add weighted portfolio row
+    weighted_df = weighted_returns[months_from_june].to_frame().T
     weighted_df.index = [f"{name} Portfolio"]
-    st.dataframe(weighted_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=1), use_container_width=True)
+    combined_df = pd.concat([combined_df, weighted_df])
 
-    # Benchmark comparison under each portfolio
-    st.subheader("📊 Benchmark Comparison")
-    benchmark_df = pd.DataFrame(benchmark_returns).T[all_months]
-    styled_benchmark_df = benchmark_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
-    st.dataframe(styled_benchmark_df, use_container_width=True)
+    # Add benchmarks
+    for b_name, b_returns in benchmark_returns.items():
+        b_row = b_returns[months_from_june].to_frame().T
+        b_row.index = [f"📊 {b_name}"]
+        combined_df = pd.concat([combined_df, b_row])
+
+    # Display styled table
+    styled_df = combined_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
+    st.dataframe(styled_df, use_container_width=True)
 
     st.markdown("---")
