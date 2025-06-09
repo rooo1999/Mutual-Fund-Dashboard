@@ -4,4 +4,3 @@ requests
 python-dateutil
 matplotlib
 seaborn
-LinearSegmentedColormap
