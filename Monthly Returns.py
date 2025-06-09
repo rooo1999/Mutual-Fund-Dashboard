@@ -165,6 +165,6 @@ for i in range(len(default_portfolio_names)):
     combined_df["MTD"] = mtd_column
 
     # Display styled table
-    styled_df = combined_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
+    styled_df = combined_df.style.format(lambda x: f"{x:.2f}" if pd.notnull(x) else "").background_gradient(cmap=excel_cmap, axis=0)
     st.dataframe(styled_df, use_container_width=True)
     st.markdown("---")
