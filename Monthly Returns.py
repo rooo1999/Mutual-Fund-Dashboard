@@ -7,7 +7,7 @@ from matplotlib.colors import LinearSegmentedColormap
 st.set_page_config(page_title="Mutual Fund Monthly Returns Dashboard", layout="wide")
 st.title("📈 Mutual Fund Monthly Returns Dashboard")
 
-# Start date for monthly returns
+# Starting from Jan 2024
 start_date = datetime(2024, 1, 1)
 today = datetime.today() - timedelta(days=1)
 
@@ -35,10 +35,19 @@ def calculate_monthly_returns(nav_df):
     mom_returns.index = mom_returns.index.strftime('%b-%Y')
     return mom_returns
 
-# Excel-style color gradient
+# Color gradient like Excel
 excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
 
-# Portfolio definitions
+# Benchmarks
+benchmark_scheme_codes = {
+    "Nifty 50": "147794",
+    "Nifty 500": "147625",
+    "Smallcap 250": "147623",
+    "Midcap 150": "147622",
+    "Sensex": "119597"
+}
+
+# Portfolios with weights
 default_portfolio_names = [
     "High Growth Active", "High Growth Passive", "Sector Rotation",
     "Season's Flavor", "Smart Debt", "Global Equity"
@@ -59,12 +68,14 @@ for i in range(len(default_portfolio_names)):
     name = default_portfolio_names[i]
     portfolio = default_portfolios[i]
 
-    st.subheader(f"{name} Monthly Returns")
+    st.subheader(f"🧾 {name} Monthly Returns")
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
         continue
 
     fund_monthly_returns = {}
+    weighted_returns = None
+
     with st.spinner(f"Fetching NAVs for {name}..."):
         for scheme_code, weight in portfolio.items():
             nav_df, scheme_name = get_nav_history(scheme_code)
@@ -73,6 +84,10 @@ for i in range(len(default_portfolio_names)):
                 continue
             monthly_returns = calculate_monthly_returns(nav_df)
             fund_monthly_returns[scheme_name] = monthly_returns
+            if weighted_returns is None:
+                weighted_returns = monthly_returns * weight
+            else:
+                weighted_returns = weighted_returns.add(monthly_returns * weight, fill_value=0)
 
     if not fund_monthly_returns:
         st.write("No data available for this portfolio.")
@@ -82,4 +97,27 @@ for i in range(len(default_portfolio_names)):
     styled_df = monthly_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
     st.dataframe(styled_df, use_container_width=True)
 
+    if weighted_returns is not None:
+        weighted_returns.name = f"{name} Portfolio"
+        st.subheader("📦 Portfolio Weighted Returns")
+        st.dataframe(weighted_returns.to_frame().T.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=1), use_container_width=True)
+
     st.markdown("---")
+
+# Benchmarks
+st.header("📉 Benchmark Monthly Returns (from Jan 2024)")
+benchmark_returns = {}
+
+for b_name, b_code in benchmark_scheme_codes.items():
+    nav_df, scheme_name = get_nav_history(b_code)
+    if nav_df.empty:
+        continue
+    monthly_returns = calculate_monthly_returns(nav_df)
+    benchmark_returns[b_name] = monthly_returns
+
+if benchmark_returns:
+    benchmark_df = pd.DataFrame(benchmark_returns).T
+    styled_benchmark_df = benchmark_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
+    st.dataframe(styled_benchmark_df, use_container_width=True)
+else:
+    st.write("Benchmark data not available.")
