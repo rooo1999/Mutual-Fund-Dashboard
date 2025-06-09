@@ -9,7 +9,7 @@ st.title("📈 Mutual Fund Monthly Returns Dashboard")
 
 start_date = datetime(2024, 1, 1)
 today = datetime.today() - timedelta(days=1)
-display_start_month = "Jun-2024"  # Only show months from June 2024 onward
+display_start_month = "Jun-2024"
 
 @st.cache_data(ttl=86400)
 def get_nav_history(scheme_code):
@@ -32,31 +32,27 @@ def calculate_monthly_returns(nav_df):
     monthly_nav = nav_df['nav'].resample('M').last()
     mom_returns = monthly_nav.pct_change() * 100
     mom_returns = mom_returns.round(2)
-    mom_returns.index = mom_returns.index.strftime('%b-%Y')
     return mom_returns
 
 def calculate_mtd(nav_df):
     this_month_start = datetime(today.year, today.month, 1)
     recent_df = nav_df[nav_df.index >= this_month_start]
-    if len(recent_df) < 2:
+    if recent_df.empty or this_month_start not in nav_df.index:
         return None
-    start_nav = recent_df.iloc[0]['nav']
-    latest_nav = recent_df.iloc[-1]['nav']
-    return round(((latest_nav - start_nav) / start_nav) * 100, 2)
+    start_nav = nav_df.loc[nav_df.index >= this_month_start].iloc[0]['nav']
+    end_nav = recent_df.iloc[-1]['nav']
+    mtd = ((end_nav - start_nav) / start_nav) * 100
+    return round(mtd, 2)
 
-def get_all_months(start_date):
-    today = datetime.today()
-    months = pd.date_range(start=start_date, end=today, freq='M').strftime('%b-%Y')
-    return months.tolist()
-
-# Generate month index and filter from Jun 2024 onwards
-all_months = get_all_months(start_date)
-months_from_june = [m for m in all_months if m >= display_start_month]
+# Setup month range
+all_months_dt = pd.date_range(start=start_date, end=today, freq='M')
+months_from_june_dt = [m for m in all_months_dt if m.strftime('%b-%Y') >= display_start_month]
+month_display_labels = [m.strftime('%b-%Y') for m in months_from_june_dt]
 
 # Excel-like color map
 excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
 
-# Benchmark codes
+# Benchmark definitions
 benchmark_scheme_codes = {
     "Nifty 50": "147794",
     "Nifty 500": "147625",
@@ -80,19 +76,21 @@ default_portfolios = [
     {"148486": 0.3, "148064": 0.2, "140242": 0.2, "132005": 0.3}
 ]
 
-# Preload benchmark returns + MTD
+# Preload benchmark returns
 benchmark_returns = {}
-benchmark_mtd = {}
+benchmark_mtds = {}
+
 for b_name, b_code in benchmark_scheme_codes.items():
     nav_df, _ = get_nav_history(b_code)
     if nav_df.empty:
         continue
-    monthly_returns = calculate_monthly_returns(nav_df).reindex(all_months)
+    monthly_returns = calculate_monthly_returns(nav_df).reindex(months_from_june_dt)
+    monthly_returns.index = month_display_labels
     benchmark_returns[b_name] = monthly_returns
     mtd = calculate_mtd(nav_df)
-    benchmark_mtd[b_name] = mtd
+    benchmark_mtds[b_name] = mtd
 
-st.header("📆 Monthly MoM Returns (from Jun 2024) + MTD")
+st.header("📆 Monthly MoM Returns (from Jun 2024)")
 
 # Show portfolios
 for i in range(len(default_portfolio_names)):
@@ -106,50 +104,67 @@ for i in range(len(default_portfolio_names)):
         continue
 
     fund_monthly_returns = {}
-    fund_mtd = {}
-    weighted_returns = pd.Series(0, index=all_months)
-    weighted_mtd = 0
-
+    weighted_returns = pd.Series(0, index=month_display_labels)
+    portfolio_mtds = []
+    
     with st.spinner(f"Fetching NAVs for {name}..."):
         for scheme_code, weight in portfolio.items():
             nav_df, scheme_name = get_nav_history(scheme_code)
             if nav_df.empty:
                 st.warning(f"Data not available for scheme {scheme_code} in {name}")
                 continue
-            monthly_returns = calculate_monthly_returns(nav_df).reindex(all_months)
+            monthly_returns = calculate_monthly_returns(nav_df).reindex(months_from_june_dt)
+            monthly_returns.index = month_display_labels
             fund_monthly_returns[scheme_name] = monthly_returns
             weighted_returns = weighted_returns.add(monthly_returns.fillna(0) * weight, fill_value=0)
-
             mtd = calculate_mtd(nav_df)
-            fund_mtd[scheme_name] = mtd
             if mtd is not None:
-                weighted_mtd += mtd * weight
+                portfolio_mtds.append(mtd * weight)
 
     if not fund_monthly_returns:
         st.write("No data available for this portfolio.")
         continue
 
-    # Combine all: funds + portfolio + benchmarks
-    combined_df = pd.DataFrame(fund_monthly_returns).T[months_from_june]
-
-    # Add MTD column
-    combined_df['MTD'] = pd.Series(fund_mtd)
+    combined_df = pd.DataFrame(fund_monthly_returns).T[month_display_labels]
 
     # Add weighted portfolio row
-    weighted_df = weighted_returns[months_from_june].to_frame().T
+    weighted_df = weighted_returns.to_frame().T
     weighted_df.index = [f"{name} Portfolio"]
-    weighted_df['MTD'] = round(weighted_mtd, 2)
     combined_df = pd.concat([combined_df, weighted_df])
 
     # Add benchmarks
     for b_name, b_returns in benchmark_returns.items():
-        b_row = b_returns[months_from_june].to_frame().T
+        b_row = b_returns.to_frame().T
         b_row.index = [f"📊 {b_name}"]
-        b_row['MTD'] = benchmark_mtd.get(b_name)
         combined_df = pd.concat([combined_df, b_row])
+
+    # Add MTD column
+    mtd_column = []
+    for label in combined_df.index:
+        if label.endswith("Portfolio"):
+            mtd_val = round(sum(portfolio_mtds), 2) if portfolio_mtds else None
+        elif label.startswith("📊"):
+            benchmark_name = label[2:].strip()
+            mtd_val = benchmark_mtds.get(benchmark_name)
+        else:
+            # Extract scheme code by name lookup (optional optimization)
+            found = False
+            for port in default_portfolios:
+                for code, weight in port.items():
+                    _, scheme = get_nav_history(code)
+                    if scheme == label:
+                        df, _ = get_nav_history(code)
+                        mtd_val = calculate_mtd(df)
+                        found = True
+                        break
+                if found:
+                    break
+            else:
+                mtd_val = None
+        mtd_column.append(mtd_val)
+    combined_df["MTD"] = mtd_column
 
     # Display styled table
     styled_df = combined_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
     st.dataframe(styled_df, use_container_width=True)
-
     st.markdown("---")
