@@ -2,15 +2,19 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+import seaborn as sns
+import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
-st.set_page_config(page_title="Mutual Fund Monthly Returns Dashboard", layout="wide")
-st.title("📈 Mutual Fund Monthly Returns Dashboard")
+st.set_page_config(page_title="Mutual Fund Returns Dashboard", layout="wide")
+st.title("📈 Mutual Fund Returns Dashboard")
 
-start_date = datetime(2024, 1, 1)
 today = datetime.today() - timedelta(days=1)
-full_month_range = pd.date_range(start=start_date, end=today, freq='M')
-full_month_str = full_month_range.strftime('%b-%Y')
+start_date = datetime(2024, 1, 1)
+
+# Custom Excel-style gradient colormap
+excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
 
 @st.cache_data(ttl=86400)
 def get_nav_history(scheme_code):
@@ -25,27 +29,43 @@ def get_nav_history(scheme_code):
     df.dropna(subset=['date', 'nav'], inplace=True)
     df.set_index('date', inplace=True)
     df.sort_index(inplace=True)
-    df = df[df.index >= start_date]
     scheme_name = data.get("meta", {}).get("scheme_name", f"Scheme {scheme_code}")
     return df, scheme_name
 
 def calculate_monthly_returns(nav_df):
-    nav_df = nav_df.asfreq('D').ffill()
-    monthly_nav = nav_df['nav'].resample('M').last()
+    # Sort by date
+    nav_df = nav_df.sort_index()
+
+    # Month ends from Jan 2024 to today
+    month_ends = pd.date_range(start=start_date, end=today, freq='M')
+
+    month_end_navs = []
+    last_valid_nav = None
+
+    for me in month_ends:
+        eligible_navs = nav_df.loc[nav_df.index <= me]
+        if not eligible_navs.empty:
+            last_valid_nav = eligible_navs['nav'].iloc[-1]
+        month_end_navs.append(last_valid_nav)
+
+    monthly_nav = pd.Series(month_end_navs, index=month_ends)
+
+    # Calculate MoM returns in %
     mom_returns = monthly_nav.pct_change() * 100
     mom_returns = mom_returns.round(2)
-    mom_returns = mom_returns.reindex(full_month_range.strftime('%b-%Y'), fill_value=0)
+
+    # Format index as 'Mon-YYYY'
+    mom_returns.index = mom_returns.index.strftime('%b-%Y')
+
     return mom_returns
 
-# Excel-like gradient
-excel_cmap = LinearSegmentedColormap.from_list("excel_like", ["#f8696b", "#ffeb84", "#63be7b"])
-
+# Benchmark funds — you can add up to 5 benchmarks here
 benchmark_scheme_codes = {
     "Nifty 50": "147794",
     "Nifty 500": "147625",
     "Smallcap 250": "147623",
-    "Midcap 150": "147622",
-    "Sensex": "119597"
+    "Nifty Midcap 150": "147626",
+    "Nifty Bank": "147642"
 }
 
 default_portfolio_names = [
@@ -62,19 +82,19 @@ default_portfolios = [
     {"148486": 0.3, "148064": 0.2, "140242": 0.2, "132005": 0.3}
 ]
 
-st.header("📆 Monthly MoM Returns (from Jan 2024)")
+st.header("📊 Monthly Returns from Jan 2024")
 
 for i in range(len(default_portfolio_names)):
     name = default_portfolio_names[i]
     portfolio = default_portfolios[i]
 
-    st.subheader(f"🧾 {name} Monthly Returns")
+    st.subheader(f"{name} Portfolio Monthly Returns")
+
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
         continue
 
-    fund_monthly_returns = {}
-    weighted_returns = pd.Series(0, index=full_month_str)
+    fund_returns_dict = {}
 
     with st.spinner(f"Fetching NAVs for {name}..."):
         for scheme_code, weight in portfolio.items():
@@ -82,29 +102,39 @@ for i in range(len(default_portfolio_names)):
             if nav_df.empty:
                 st.warning(f"Data not available for scheme {scheme_code} in {name}")
                 continue
-            monthly_returns = calculate_monthly_returns(nav_df)
-            fund_monthly_returns[scheme_name] = monthly_returns
-            weighted_returns += monthly_returns * weight
 
-    if not fund_monthly_returns:
-        st.write("No data available for this portfolio.")
+            monthly_returns = calculate_monthly_returns(nav_df)
+            # Multiply by weight
+            weighted_returns = monthly_returns * weight
+            fund_returns_dict[scheme_name] = weighted_returns
+
+    if not fund_returns_dict:
+        st.write("No NAV data found for any funds in this portfolio.")
         continue
 
-    monthly_df = pd.DataFrame(fund_monthly_returns).T
-    styled_df = monthly_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
-    st.dataframe(styled_df, use_container_width=True)
+    # Create DataFrame: rows = funds, columns = months
+    fund_df = pd.DataFrame(fund_returns_dict).T
 
-    st.subheader("📦 Portfolio + Benchmark Monthly Returns")
-    combined_df = pd.DataFrame({f"{name} Portfolio": weighted_returns}).T
+    # Portfolio returns = sum of weighted returns per month
+    portfolio_returns = fund_df.sum(axis=0).to_frame(name=f"{name} Portfolio")
 
-    for bench_name, bench_code in benchmark_scheme_codes.items():
-        nav_df, _ = get_nav_history(bench_code)
+    # Get benchmark returns
+    benchmark_returns_dict = {}
+    for b_name, b_code in benchmark_scheme_codes.items():
+        nav_df, _ = get_nav_history(b_code)
         if nav_df.empty:
+            st.warning(f"Benchmark data not available for {b_name}")
             continue
-        monthly_returns = calculate_monthly_returns(nav_df)
-        combined_df.loc[f"Benchmark: {bench_name}"] = monthly_returns
+        bench_returns = calculate_monthly_returns(nav_df)
+        benchmark_returns_dict[b_name] = bench_returns
 
-    styled_combined = combined_df[full_month_str].style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=0)
-    st.dataframe(styled_combined, use_container_width=True)
+    benchmark_df = pd.DataFrame(benchmark_returns_dict)
+
+    # Combine portfolio and benchmark returns vertically
+    combined_df = pd.concat([portfolio_returns, benchmark_df.T])
+
+    # Show table with color gradient
+    styled_df = combined_df.style.format("{:.2f}").background_gradient(cmap=excel_cmap, axis=1)
+    st.dataframe(styled_df)
 
     st.markdown("---")
