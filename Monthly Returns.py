@@ -96,7 +96,7 @@ for i in range(len(default_portfolio_names)):
     name = default_portfolio_names[i]
     portfolio = default_portfolios[i]
 
-    st.subheader(f"🧾 {name} Portfolio Returns + Benchmarks")
+    st.subheader(f"🧾 {name} Portfolio")
 
     if not portfolio or sum(portfolio.values()) == 0:
         st.write("No valid allocation.")
@@ -106,6 +106,7 @@ for i in range(len(default_portfolio_names)):
     weighted_returns = pd.Series(0, index=month_display_labels)
     fund_nav_data = {}
     portfolio_mtds = []
+    fund_weights = {}
 
     with st.spinner(f"Fetching NAVs for {name}..."):
         for scheme_code, weight in portfolio.items():
@@ -118,6 +119,7 @@ for i in range(len(default_portfolio_names)):
             fund_monthly_returns[scheme_name] = monthly_returns
             weighted_returns += monthly_returns.fillna(0) * weight
             fund_nav_data[scheme_name] = nav_df
+            fund_weights[scheme_name] = weight
             mtd = calculate_mtd(nav_df)
             if mtd is not None:
                 portfolio_mtds.append(mtd * weight)
@@ -126,32 +128,32 @@ for i in range(len(default_portfolio_names)):
         st.write("No data available for this portfolio.")
         continue
 
-    combined_df = pd.DataFrame(fund_monthly_returns).T[month_display_labels]
-    weighted_df = weighted_returns.to_frame().T
-    weighted_df.index = [f"{name} Portfolio"]
-    combined_df = pd.concat([combined_df, weighted_df])
+    # Table 1: Fund-wise table
+    fund_df = pd.DataFrame(fund_monthly_returns).T[month_display_labels]
+    fund_df["MTD"] = [calculate_mtd(fund_nav_data.get(fund)) for fund in fund_df.index]
+    fund_df["Weight"] = fund_df.index.map(fund_weights).round(2)
+    fund_df = fund_df[["Weight"] + month_display_labels + ["MTD"]]
 
-    for b_name, b_returns in benchmark_returns.items():
-        b_row = b_returns.to_frame().T
-        b_row.index = [f"📊 {b_name}"]
-        combined_df = pd.concat([combined_df, b_row])
-
-    # Add MTD
-    mtd_column = []
-    for row_label in combined_df.index:
-        if row_label.endswith("Portfolio"):
-            mtd_val = round(sum(portfolio_mtds), 2) if portfolio_mtds else None
-        elif row_label.startswith("📊"):
-            benchmark_name = row_label[2:].strip()
-            mtd_val = benchmark_mtds.get(benchmark_name)
-        else:
-            nav_df = fund_nav_data.get(row_label)
-            mtd_val = calculate_mtd(nav_df) if nav_df is not None else None
-        mtd_column.append(mtd_val)
-
-    combined_df["MTD"] = mtd_column
-
-    styled_df = combined_df.style.format(lambda x: f"{x:.2f}" if pd.notnull(x) else "").background_gradient(
+    styled_fund_df = fund_df.style.format(lambda x: f"{x:.2f}" if pd.notnull(x) else "").background_gradient(
         cmap=excel_cmap, axis=0)
-    st.dataframe(styled_df, use_container_width=True)
+    st.markdown("**Fund-wise Performance:**")
+    st.dataframe(styled_fund_df, use_container_width=True)
+
+    # Table 2: Portfolio + Benchmarks table
+    summary_df = pd.DataFrame(columns=month_display_labels + ["MTD"])
+
+    # Portfolio row
+    summary_df.loc[f"{name} Portfolio"] = list(weighted_returns.values) + [round(sum(portfolio_mtds), 2) if portfolio_mtds else None]
+
+    # Benchmarks
+    for b_name, b_returns in benchmark_returns.items():
+        row = list(b_returns.values) + [benchmark_mtds.get(b_name)]
+        summary_df.loc[f"📊 {b_name}"] = row
+
+    styled_summary_df = summary_df.style.format(lambda x: f"{x:.2f}" if pd.notnull(x) else "").background_gradient(
+        cmap=excel_cmap, axis=0)
+
+    st.markdown("**Portfolio vs Benchmarks:**")
+    st.dataframe(styled_summary_df, use_container_width=True)
+
     st.markdown("---")
