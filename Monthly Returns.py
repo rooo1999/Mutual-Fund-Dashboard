@@ -37,20 +37,17 @@ def calculate_monthly_returns(nav_df):
 def calculate_mtd(nav_df):
     this_month_start = datetime(today.year, today.month, 1)
 
-    # Get NAVs up to today
-    navs_till_today = nav_df[nav_df.index <= today]
+    # End NAV = latest NAV on or before today
+    navs_till_today = nav_df.loc[:today]
     if navs_till_today.empty:
         return None
+    end_nav = navs_till_today['nav'].iloc[-1]
 
-    # Latest NAV
-    end_nav = navs_till_today.iloc[-1]['nav']
-
-    # Get NAV on or before the 1st of the month
-    navs_before_or_on_start = nav_df[nav_df.index <= this_month_start]
-    if navs_before_or_on_start.empty:
+    # Start NAV = latest NAV on or before 1st of the month
+    navs_till_month_start = nav_df.loc[:this_month_start]
+    if navs_till_month_start.empty:
         return None
-
-    start_nav = navs_before_or_on_start.iloc[-1]['nav']
+    start_nav = navs_till_month_start['nav'].iloc[-1]
 
     mtd = ((end_nav - start_nav) / start_nav) * 100
     return round(mtd, 2)
