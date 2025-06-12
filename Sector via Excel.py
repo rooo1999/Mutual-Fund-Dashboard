@@ -32,11 +32,7 @@ import plotly.graph_objects as go
 import openpyxl  # Required by pandas for reading .xlsx files
 
 # --- Page Configuration ---
-st.set_page_config(
-    page_title="Momentum Sector Trading Strategy",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+
 
 #======================================================================
 # --- CORE BACKTESTING & DATA PROCESSING FUNCTIONS ---
