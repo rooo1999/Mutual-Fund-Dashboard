@@ -1,4 +1,30 @@
+# ==========================================================
+# == ENVIRONMENT DIAGNOSTIC - PUT THIS AT THE VERY TOP =====
+# ==========================================================
 import streamlit as st
+import numpy
+import pandas
+import pandas_ta
+
+st.set_page_config(layout="wide") # Add this if you don't have it already
+
+st.header("Environment Check")
+st.code(f"""
+Python is currently using these versions:
+- NumPy:       {numpy.__version__}
+- Pandas:      {pandas.__version__}
+- Pandas-TA:   {pandas_ta.__version__}
+""")
+# ==========================================================
+# ==========================================================
+
+
+# Your original code starts here...
+# import plotly.graph_objects as go
+# import openpyxl
+# --- Page Configuration ---
+# st.set_page_config(...)  <-- MAKE SURE TO REMOVE THIS DUPLICATE LINEimport streamlit as st
+
 import pandas as pd
 import numpy as np
 import pandas_ta as ta
