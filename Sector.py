@@ -16,17 +16,19 @@ st.set_page_config(
 # --- Constants & Configuration ---
 API_URL_TEMPLATE = "https://api.mfapi.in/mf/{}"
 DEFAULT_SECTOR_FUNDS = {
-    "IT": "102000",
-    "Pharma": "106235",
-    "FMCG": "105758",
-    "Auto": "140225",
-    "Banking": "122640",
-    "Infra": "109522",
+    "IT": "153320",
+    "Pharma": "150929",
+    "FMCG": "149072",
+    "Auto": "150645",
+    "Banking": "148788",
+    "Infra": "148792",
+    "Energy": "153319",
+    "Consumption": "153318",
 }
-DEFAULT_BENCHMARK_CODE = "147794" # ICICI Prudential Nifty 50 Index Fund
+DEFAULT_BENCHMARK_CODE = "147587" # ICICI Prudential Nifty 50 Index Fund
 
 # --- Caching & Data Fetching ---
-@st.cache_data(ttl=3600)  # Cache data for 1 hour
+@st.cache_data(ttl=3600)
 def get_nav_history(scheme_code: str):
     """Fetches and processes NAV history for a given mutual fund scheme code."""
     try:
@@ -69,7 +71,13 @@ def calculate_momentum_scores(prices: pd.DataFrame, lookback_periods: dict, sma_
     rebalance_dates = prices.resample("M").last().index
 
     for date in rebalance_dates:
-        if date not in prices.index or prices.index.get_loc(date) < sma_period:
+        # Ensure we have enough historical data *within our filtered dataframe*
+        try:
+            date_loc = prices.index.get_loc(date)
+            if date_loc < sma_period:
+                continue
+        except KeyError:
+            # This rebalance date doesn't exist in our prices index, so skip
             continue
 
         data_window = prices.loc[:date]
@@ -89,7 +97,7 @@ def calculate_momentum_scores(prices: pd.DataFrame, lookback_periods: dict, sma_
                     "SMA_Ratio": series.iloc[-1] / sma_val if sma_val else 0,
                     "RSI": rsi_val,
                 }
-            except IndexError:
+            except (IndexError, KeyError):
                 continue
 
         if not scores: continue
@@ -115,7 +123,6 @@ def calculate_momentum_scores(prices: pd.DataFrame, lookback_periods: dict, sma_
         
     return monthly_scores, monthly_weights
 
-# --- THIS IS THE CORRECTED FUNCTION ---
 def run_backtest(prices: pd.DataFrame, monthly_weights: dict):
     """Simulates the portfolio performance based on monthly weights."""
     if not monthly_weights:
@@ -125,48 +132,35 @@ def run_backtest(prices: pd.DataFrame, monthly_weights: dict):
     daily_returns = prices.pct_change()
     sorted_dates = sorted(monthly_weights.keys())
     
-    # Initialize the portfolio NAV at the first rebalancing date
     start_date = sorted_dates[0]
     portfolio_nav.loc[start_date] = 100
     
-    # Iterate through the rebalancing periods
     for i, current_rebalance_date in enumerate(sorted_dates):
-        # Determine the holding period for the current weights
         start_period = current_rebalance_date
         end_period = sorted_dates[i + 1] if i + 1 < len(sorted_dates) else prices.index[-1]
         
-        # Get the starting NAV for this period. It must be the last valid value.
-        # ffill() ensures we carry forward the NAV from the previous period.
         start_nav = portfolio_nav.loc[:start_period].ffill().iloc[-1]
         
         weights = monthly_weights[start_period]
         
-        # Get the slice of returns for this holding period
         period_daily_returns = daily_returns.loc[start_period:end_period]
         
         if not weights:
-            # If no assets are held (cash), the NAV remains flat for the period.
             portfolio_nav.loc[start_period:end_period] = start_nav
             continue
             
-        # Align weights with the returns dataframe columns
         aligned_weights = pd.Series(weights).reindex(period_daily_returns.columns, fill_value=0)
-        
-        # Calculate the portfolio's daily returns for this period
         portfolio_period_returns = period_daily_returns.dot(aligned_weights)
         
-        # Calculate the NAV path and update the main NAV series
-        # Note: We skip the first day's return as it's the rebalance day
         nav_path = start_nav * (1 + portfolio_period_returns.iloc[1:]).cumprod()
         portfolio_nav.update(nav_path)
 
     return portfolio_nav.ffill().dropna()
 
-
 def calculate_kpis(nav_series: pd.Series):
     """Calculates key performance indicators for a given NAV series."""
     if nav_series.empty or len(nav_series) < 2:
-        return {"CAGR": 0, "Max Drawdown": 0, "Sharpe Ratio": 0}
+        return {"CAGR": 0, "Max Drawdown": 0, "Sharpe Ratio": 0, "Drawdown Series": pd.Series()}
 
     returns = nav_series.pct_change().dropna()
     
@@ -187,15 +181,11 @@ def calculate_kpis(nav_series: pd.Series):
         "Drawdown Series": drawdown
     }
 
-# --- Plotting Functions ---
 def plot_performance_chart(portfolio_nav, benchmark_nav, portfolio_drawdown, benchmark_drawdown):
     """Creates an interactive Plotly chart for performance and drawdown."""
     fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.1,
-        row_heights=[0.7, 0.3],
-        subplot_titles=("Portfolio vs. Benchmark NAV", "Drawdown")
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1,
+        row_heights=[0.7, 0.3], subplot_titles=("Portfolio vs. Benchmark NAV", "Drawdown")
     )
 
     fig.add_trace(go.Scatter(x=portfolio_nav.index, y=portfolio_nav, name="Strategy Portfolio", line=dict(color='royalblue', width=2)), row=1, col=1)
@@ -205,15 +195,10 @@ def plot_performance_chart(portfolio_nav, benchmark_nav, portfolio_drawdown, ben
     fig.add_trace(go.Scatter(x=benchmark_drawdown.index, y=benchmark_drawdown, name="Benchmark Drawdown", line=dict(color='darkorange', width=1), fill='tozeroy'), row=2, col=1)
 
     fig.update_layout(
-        height=600,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis1_title="Normalized NAV",
-        yaxis2_title="Drawdown",
-        yaxis2_tickformat=".0%",
-        hovermode="x unified"
+        height=600, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis1_title="Normalized NAV", yaxis2_title="Drawdown", yaxis2_tickformat=".0%", hovermode="x unified"
     )
     st.plotly_chart(fig, use_container_width=True)
-
 
 # --- Streamlit UI ---
 st.title("📊 Sector Momentum Strategy Dashboard")
@@ -226,19 +211,26 @@ Configure the parameters in the sidebar and analyze the results below.
 with st.sidebar:
     st.header("⚙️ Configuration")
     
+    # --- NEW: START DATE SELECTOR ---
+    st.subheader("Timeframe")
+    start_date_input = st.date_input(
+        "Strategy Start Date",
+        value=datetime(2020, 1, 1),
+        min_value=datetime(2010, 1, 1), # A reasonable lower bound
+        max_value=datetime.today(),
+        help="Select the date from which the backtest should begin. The actual start may be slightly later if there is not enough data for initial calculations."
+    )
+    # --- END NEW ---
+
+    st.subheader("Strategy Parameters")
     st.session_state.top_n_sectors = st.slider(
         "Number of Top Sectors to Invest In", 
         min_value=1, max_value=5, value=2, step=1,
         help="The strategy will allocate capital equally among this many top-ranked sectors."
     )
 
-    st.subheader("Momentum Factors")
-    lookback_periods = {
-        "1M": 21,
-        "3M": 63,
-        "6M": 126
-    }
     sma_period = st.number_input("SMA Lookback (days)", min_value=20, max_value=200, value=50)
+    lookback_periods = {"1M": 21, "3M": 63, "6M": 126}
 
     st.subheader("Benchmark")
     benchmark_code = st.text_input("Benchmark Scheme Code", value=DEFAULT_BENCHMARK_CODE)
@@ -256,10 +248,19 @@ if not all_nav_data:
 
 prices = pd.DataFrame(all_nav_data).dropna(how='all').ffill()
 
+# --- NEW: FILTER DATAFRAME BASED ON USER'S START DATE ---
+start_date = pd.to_datetime(start_date_input)
+prices = prices[prices.index >= start_date]
+
+if prices.empty:
+    st.error(f"No fund data available after the selected start date: {start_date.strftime('%Y-%m-%d')}. Please choose an earlier date.")
+    st.stop()
+# --- END NEW ---
+
 monthly_scores, monthly_weights = calculate_momentum_scores(prices, lookback_periods, sma_period)
 
 if not monthly_weights:
-    st.warning("Could not generate any investment signals based on the current data and parameters.")
+    st.warning("Could not generate any investment signals. This could be due to insufficient data for the selected start date and lookback period. Try an earlier start date.")
     st.stop()
 
 portfolio_nav = run_backtest(prices, monthly_weights)
@@ -310,16 +311,12 @@ with col1:
         current_alloc_df.index.name = 'Sector'
         
         fig_pie = go.Figure(data=[go.Pie(
-            labels=current_alloc_df.index, 
-            values=current_alloc_df['Weight'], 
-            hole=.3,
-            pull=[0.05] * len(current_alloc_df)
+            labels=current_alloc_df.index, values=current_alloc_df['Weight'], 
+            hole=.3, pull=[0.05] * len(current_alloc_df)
         )])
         fig_pie.update_layout(
             title_text=f"As of {last_rebalance_date.strftime('%b %Y')}",
-            title_x=0.5,
-            showlegend=False,
-            margin=dict(l=20, r=20, t=40, b=20)
+            title_x=0.5, showlegend=False, margin=dict(l=20, r=20, t=40, b=20)
         )
         st.plotly_chart(fig_pie, use_container_width=True)
     else:
@@ -335,14 +332,12 @@ with col2:
             .format("{:.2f}")
         )
 
-
 with st.expander("📅 View Monthly Returns"):
     monthly_returns = portfolio_nav.resample("M").ffill().pct_change().to_frame("Portfolio")
     monthly_returns["Benchmark"] = benchmark_nav.resample("M").ffill().pct_change()
     monthly_returns.index = monthly_returns.index.strftime("%b-%Y")
     
     st.dataframe(
-        monthly_returns.style
-        .format("{:.2%}")
-        .background_gradient(cmap="RdYlGn", axis=0)
+        monthly_returns.style.format("{:.2%}").background_gradient(cmap="RdYlGn", axis=0)
     )
+    
