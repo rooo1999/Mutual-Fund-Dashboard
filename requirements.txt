@@ -8,4 +8,4 @@ plotly
 pandas-ta
 openpyxl
 setuptools
-numpy
+numpy<2.0
