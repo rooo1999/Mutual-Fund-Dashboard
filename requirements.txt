@@ -5,3 +5,5 @@ python-dateutil
 matplotlib
 seaborn
 plotly
+pandas-ta
+openpyxl
