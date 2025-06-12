@@ -16,7 +16,7 @@ st.set_page_config(
 # --- Constants & Configuration ---
 API_URL_TEMPLATE = "https://api.mfapi.in/mf/{}"
 DEFAULT_SECTOR_FUNDS = {
-    "Nifty 50": "100822",
+    "Nifty 50": "146381",
     "Next 50": "146381",
     "Midcap 150": "147621",
     "SC 250": "152232",
@@ -361,4 +361,3 @@ with st.expander("📅 View Monthly Returns"):
     st.dataframe(
         monthly_returns.style.format("{:.2%}").background_gradient(cmap="RdYlGn", axis=0)
     )
-    
