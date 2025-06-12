@@ -21,7 +21,7 @@ DEFAULT_SECTOR_FUNDS = {
     "Midcap 150": "147621",
     "SC 250": "152232",
 }
-DEFAULT_BENCHMARK_CODE = "147587" # ICICI Prudential Nifty 50 Index Fund
+DEFAULT_BENCHMARK_CODE = "100822" # ICICI Prudential Nifty 50 Index Fund
 
 # --- Caching & Data Fetching ---
 @st.cache_data(ttl=3600)
