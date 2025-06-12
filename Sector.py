@@ -16,16 +16,14 @@ st.set_page_config(
 # --- Constants & Configuration ---
 API_URL_TEMPLATE = "https://api.mfapi.in/mf/{}"
 DEFAULT_SECTOR_FUNDS = {
-    "IT": "153320",
-    "Pharma": "150929",
-    "FMCG": "149072",
-    "Auto": "150645",
-    "Banking": "148788",
-    "Infra": "148792",
-    "Energy": "153319",
-    "Consumption": "153318",
+    "IT": "102000",
+    "Pharma": "106235",
+    "FMCG": "105758",
+    "Auto": "140225",
+    "Banking": "122640",
+    "Infra": "109522",
 }
-DEFAULT_BENCHMARK_CODE = "147587" # ICICI Prudential Nifty 50 Index Fund
+DEFAULT_BENCHMARK_CODE = "147794" # ICICI Prudential Nifty 50 Index Fund
 
 # --- Caching & Data Fetching ---
 @st.cache_data(ttl=3600)  # Cache data for 1 hour
@@ -348,4 +346,3 @@ with st.expander("📅 View Monthly Returns"):
         .format("{:.2%}")
         .background_gradient(cmap="RdYlGn", axis=0)
     )
-    
