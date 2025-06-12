@@ -16,10 +16,11 @@ st.set_page_config(
 # --- Constants & Configuration ---
 API_URL_TEMPLATE = "https://api.mfapi.in/mf/{}"
 DEFAULT_SECTOR_FUNDS = {
-    "Nifty 50": "100822",
-    "Next 50": "146381",
-    "Midcap 150": "147621",
-    "SC 250": "148518",
+    "Auto": "150645",
+    "IT": "148466",
+    "Pharma": "150929",
+    "Bank": "149859",
+    "Momentum": "150454",
 }
 DEFAULT_BENCHMARK_CODE = "100822" # ICICI Prudential Nifty 50 Index Fund
 
