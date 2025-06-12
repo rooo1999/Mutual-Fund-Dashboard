@@ -7,3 +7,4 @@ seaborn
 plotly
 pandas-ta
 openpyxl
+setuptools
