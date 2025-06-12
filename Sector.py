@@ -19,7 +19,7 @@ DEFAULT_SECTOR_FUNDS = {
     "Nifty 50": "100822",
     "Next 50": "146381",
     "Midcap 150": "147621",
-    "SC 250": "152232",
+    "SC 250": "148518",
 }
 DEFAULT_BENCHMARK_CODE = "100822" # ICICI Prudential Nifty 50 Index Fund
 
@@ -358,4 +358,3 @@ with st.expander("📅 View Monthly Returns"):
     st.dataframe(
         monthly_returns.style.format("{:.2%}").background_gradient(cmap="RdYlGn", axis=0)
     )
-    
