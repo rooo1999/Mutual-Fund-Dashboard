@@ -340,4 +340,3 @@ with st.expander("📅 View Monthly Returns"):
     st.dataframe(
         monthly_returns.style.format("{:.2%}").background_gradient(cmap="RdYlGn", axis=0)
     )
-    
