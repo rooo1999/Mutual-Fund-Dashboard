@@ -72,7 +72,7 @@ benchmark_scheme_codes = {
 # Portfolios
 default_portfolio_names = [
     "High Growth Active", "High Growth Passive", "Sector Rotation",
-    "Season's Flavor", "Smart Debt", "Global Equity"
+    "Season's Flavor", "Smart Debt", "Global Equity", "Blazing Smallcaps"
 ]
 
 default_portfolios = [
@@ -82,6 +82,7 @@ default_portfolios = [
     {"145077": 0.6, "101262": 0.4},
     {"111524": 0.4, "151314": 0.4, "101042": 0.2},
     {"148486": 0.3, "148064": 0.2, "140242": 0.2, "132005": 0.3}
+    {"147944": 0.35, "152232": 0.25, "146193": 0.2, "151815": 0.2}
 ]
 
 # Benchmark preloading
