@@ -66,7 +66,7 @@ benchmark_scheme_codes = {
     "Nifty 500": "147625",
     "Smallcap 250": "147623",
     "Midcap 150": "147622",
-    "Sensex": "119597"
+    "Sensex": "119065"
 }
 
 # Portfolios

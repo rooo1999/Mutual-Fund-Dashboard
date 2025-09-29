@@ -71,7 +71,7 @@ benchmark_scheme_codes = {
     "Motilal Nifty 500": "147625",
     "Motilal Smallcap 250": "147623",
     "Midcap 150": "147622",
-    "Sensex": "119597"
+    "Sensex": "119065"
 }
 
 default_portfolio_names = [
