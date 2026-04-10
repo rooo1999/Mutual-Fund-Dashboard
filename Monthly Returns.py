@@ -53,7 +53,7 @@ def calculate_mtd(nav_df):
     return round(mtd, 2)
 
 # Month range
-all_months_dt = pd.date_range(start=start_date, end=today, freq='M')
+all_months_dt = pd.date_range(start=start_date, end=today, freq='ME')
 months_from_june_dt = [m for m in all_months_dt if m >= display_start_month]
 month_display_labels = [m.strftime('%b-%Y') for m in months_from_june_dt]
 
