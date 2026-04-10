@@ -29,7 +29,7 @@ def get_nav_history(scheme_code):
     return df, scheme_name
 
 def calculate_monthly_returns(nav_df):
-    monthly_nav = nav_df['nav'].resample('M').last()
+    monthly_nav = nav_df['nav'].resample('ME').last()
     mom_returns = monthly_nav.pct_change() * 100
     mom_returns = mom_returns.round(2)
     return mom_returns
